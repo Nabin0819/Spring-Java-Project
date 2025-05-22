@@ -6,11 +6,12 @@ on:
       - staging
 
 jobs:
-  build-and-deploy:
+  build:
+    name: Build and Push Docker Image
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout Code
         uses: actions/checkout@v3
 
       - name: Set up Docker Buildx
@@ -25,24 +26,44 @@ jobs:
       - name: Build and Push Docker Image
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: ./Dockerfile
+          context: ./JavaApp-CICD
+          file: ./JavaApp-CICD/Dockerfile
           push: true
           tags: nabin011011/git-petclinic:v1.0
 
-      - name: Deploy to EC2 via SSH
+  deploy:
+    name: Deploy to EC2 Instance
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            sudo apt update
-            sudo apt install -y docker.io
-            sudo systemctl start docker
-            sudo systemctl enable docker
+            # Install Docker if not already installed
+            if ! command -v docker &> /dev/null; then
+              echo "Docker not found. Installing..."
+              sudo apt update
+              sudo apt install -y docker.io
+              sudo systemctl start docker
+              sudo systemctl enable docker
+            else
+              echo "Docker already installed."
+            fi
 
+            # Pull the latest image
             sudo docker pull nabin011011/git-petclinic:v1.0
-            sudo docker stop petclinic || true
-            sudo docker rm petclinic || true
+
+            # Stop and remove old container if exists
+            if [ "$(sudo docker ps -aq -f name=petclinic)" ]; then
+              echo "Stopping and removing existing container..."
+              sudo docker stop petclinic
+              sudo docker rm petclinic
+            fi
+
+            # Run new container
             sudo docker run -d -p 8080:8080 --name petclinic nabin011011/git-petclinic:v1.0
