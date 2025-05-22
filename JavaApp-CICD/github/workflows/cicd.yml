@@ -3,7 +3,6 @@ name: Build and Deploy to EC2
 on:
   push:
     branches:
-      - main
       - staging
 
 jobs:
@@ -29,7 +28,7 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: nabin011011/petclinic:v1.0
+          tags: nabin011011/git-petclinic:v1.0
 
       - name: Deploy to EC2 via SSH
         uses: appleboy/ssh-action@v1.0.0
@@ -38,7 +37,12 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            docker pull nabin011011/petclinic:v1.0
-            docker stop petclinic || true && docker rm petclinic || true
-            docker run -d -p 8080:8080 --name petclinic nabin011011/petclinic:v1.0
+            sudo apt update
+            sudo apt install -y docker.io
+            sudo systemctl start docker
+            sudo systemctl enable docker
 
+            sudo docker pull nabin011011/git-petclinic:v1.0
+            sudo docker stop petclinic || true
+            sudo docker rm petclinic || true
+            sudo docker run -d -p 8080:8080 --name petclinic nabin011011/git-petclinic:v1.0
